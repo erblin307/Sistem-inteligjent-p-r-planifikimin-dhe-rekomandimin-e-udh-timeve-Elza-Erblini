@@ -17,9 +17,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const nav = [
   { href: "/overview", label: "Overview", icon: House },
-  { href: "/plan", label: "Plan a trip", icon: Route },
-  { href: "/trips", label: "My trips", icon: Luggage },
-  { href: "/saved", label: "Saved", icon: Bookmark },
+  { href: "/plan", label: "Plan a Trip", icon: Route },
+  { href: "/trips", label: "My Trips", icon: Luggage },
+  { href: "/saved", label: "Saved Places", icon: Bookmark },
   { href: "/profile", label: "Profile", icon: CircleUser },
 ] as const;
 
@@ -150,4 +150,4 @@ function PageContainer({
   );
 }
 
-export { AppShell, PageContainer, nav as appNavigation };
+export { AppShell, PageContainer, Wordmark, nav as appNavigation };
