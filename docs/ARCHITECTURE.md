@@ -17,7 +17,7 @@ The main architectural decisions:
 
 1. **A modular monolith in one Next.js app.** Domain logic lives in framework-free TypeScript modules under `src/server`. Next.js is only the delivery layer.
 2. **Three pure, deterministic engines:** Recommendation, Itinerary and Budget. Each engine is a function `(input, catalog snapshot, config) → output`. The engines do no I/O. That makes them easy to test, easy to version and possible to replay.
-3. **Plans are versioned snapshots.** A trip owns many `trip_plans`. Regenerating creates a new version instead of mutating the old one. User edits ("locks") carry over into the next version.
+3. **Plans are versioned snapshots.** A trip owns many `itineraries`. Regenerating creates a new version instead of mutating the old one. User edits ("locks") carry over into the next version.
 4. **External data sits behind ports and adapters.** For the MVP, a curated catalog is the source of truth. Live providers fill in or refresh it through adapters, and their responses are cached.
 5. **One API surface.** Versioned REST Route Handlers (`/api/v1`) are used by TanStack Query. Server Components read through the same service layer directly, with no HTTP hop. Domain mutations do not use Server Actions, so there is only one write path to secure and test.
 6. **Money is stored as integer minor units plus a currency code. Estimates carry a range.** The UI never presents an estimate as a quote.
@@ -46,16 +46,16 @@ The main architectural decisions:
 
 | Output | Produced by | Persisted in |
 |---|---|---|
-| Personalised travel plan (the aggregate) | Plan orchestrator | `trip_plans` |
-| Hotel recommendations (ranked, with score breakdown) | Recommendation engine | `recommendation_results` |
-| Activity recommendations (ranked, with reasons) | Recommendation engine | `recommendation_results` |
+| Personalised travel plan (the aggregate) | Plan orchestrator | `itineraries` |
+| Hotel recommendations (ranked, with score breakdown) | Recommendation engine | `recommendations` |
+| Activity recommendations (ranked, with reasons) | Recommendation engine | `recommendations` |
 | Budget allocation (category lines, low/expected/high) | Budget engine | `budget_lines` |
 | Day-by-day itinerary | Itinerary engine | `itinerary_days`, `itinerary_items` |
-| Route optimisation (order of stops and legs) | Itinerary engine (routing port) | `itinerary_legs` |
-| Map locations | All engines (coordinates on places) | `places` (joined) |
+| Route optimisation (order of stops and legs) | Itinerary engine (routing port) | `itinerary_items.travel_*` |
+| Map locations | All engines (coordinates on catalog rows) | `hotels`, `activities` (joined) |
 | Estimated costs | Budget engine, attached per item | `itinerary_items.cost_*`, `budget_lines` |
-| Recommendation scores (0–100 plus components) | Recommendation engine | `recommendation_results.breakdown` |
-| Saved trips and saved places | Trips and Saved modules | `trips`, `saved_items` |
+| Recommendation scores (0–100 plus components) | Recommendation engine | `recommendations.breakdown` |
+| Saved trips and saved places | Trips and Saved modules | `trips`, `saved_places` |
 
 ### 1.3 Implicit requirements surfaced during analysis
 
@@ -96,8 +96,8 @@ A signed-in user completes the five-step brief for one of the **launch destinati
 
 | Later capability | Extension point that exists in the MVP |
 |---|---|
-| Live hotel / activity inventory and booking | `HotelProvider` / `ActivityProvider` ports, `places.external_refs` |
-| Multi-city routes | `trip_plans` → `itinerary_days.base_place_id` (one hotel per day range) |
+| Live hotel / activity inventory and booking | `HotelProvider` / `ActivityProvider` ports, `source` + `external_id` on catalog tables |
+| Multi-city routes | `itineraries` → per-day hotel reference (one hotel per day range) |
 | Learning-to-rank from behaviour | `interaction_events` table, `scoring_config` versioning |
 | Collaboration / sharing | `trip_members` table (MVP: only the owner) |
 | Background workers | `generation_jobs` table, `PlanGenerator` interface |
@@ -251,7 +251,7 @@ PostgreSQL
 7. Recommendation engine – hotels    → ranked hotels (budget fit uses allowance, location uses anchor)
 8. Itinerary engine                  → days, ordered items, legs, meal slots, warnings
 9. Budget engine – final pass        → actual planned spend per line, remaining, feasibility
-10. Persist plan version (one tx)    → trip_plans + days + items + legs + budget_lines + recs
+10. Persist plan version (one tx)    → itineraries + days + items + budget_lines + recommendations
 ```
 
 Steps 4 → 9 deal with the hotel / activity chicken-and-egg problem. The best hotel depends on where the activities are, and the affordable activities depend on what the hotel costs. The pipeline resolves this with an *envelope* pass first and a *reconciliation* pass at the end. If the reconciliation goes over budget by more than the reserve, the orchestrator runs **one** bounded repair iteration: try the next-ranked cheaper hotel, then drop the lowest-utility paid activities. After that it reports the plan as infeasible together with suggestions.
@@ -266,83 +266,88 @@ Steps 4 → 9 deal with the hotel / activity chicken-and-egg problem. The best h
 
 ## 6. Database architecture
 
+Implemented in `src/server/db/schema/*` (Drizzle ORM, PostgreSQL 16). The first migration is `drizzle/0000_initial_schema.sql`, and integration tests are in `tests/db/schema.test.ts`.
+
 ### 6.1 Principles
 
-- PostgreSQL 16+. **Drizzle ORM** was chosen over Prisma for SQL-first schema, no binary engine, first-class SQL escape hatches (spatial and window queries) and small serverless cold starts.
-- Primary keys are `uuid` (v7, time-ordered) generated in the application.
-- Money is stored as `integer` minor units plus `char(3)` currency, never as floats.
-- Timestamps are `timestamptz`. Itinerary local times are stored as `time` plus the destination's `tz` (IANA) on the trip.
-- Soft delete only where users expect recovery (`trips.deleted_at`). Everything else is hard deleted.
-- Coordinates are stored as `double precision lat/lng` with a B-tree on (`destination_id`), because MVP queries are scoped to a destination. Moving to PostGIS `geography(Point)` is planned for radius queries and multi-city trips.
-- Migrations are generated by `drizzle-kit`, reviewed, and applied in CI or at deploy. Destructive changes are never made in the same release as the code change.
+- **Drizzle ORM** over `pg` (node-postgres). The schema is SQL-first, there is no binary engine, and serverless cold starts are small. Migrations are generated by `drizzle-kit generate`, reviewed, and applied with `drizzle-kit migrate`.
+- **Naming:** tables are plural `snake_case`. TypeScript keys are `camelCase`, mapped by `casing: "snake_case"` in both the client and drizzle-kit. Constraints are named `<table>_<rule>`.
+- **Keys:** `uuid` primary keys with a database default of `gen_random_uuid()`. The default lives in the database, so rows inserted outside the app get keys too.
+- **Money:** `integer` minor units plus `char(3)` currency on rows that own a price. Itinerary amounts are in `itineraries.currency`, converted at generation time.
+- **Dates:** trip and day dates are `date`, read and written as ISO strings, so they never shift with the server time zone. Item times are `time`, local to the destination's IANA `timezone`.
+- **Derived values are not stored:** days and nights come from the dates, the child count from `child_ages`, distance to the centre from coordinates, and remaining budget from the budget lines.
+- **Catalog rows are shared.** Trips and plans reference them and never copy or delete them.
+- **Integrity in the database:** foreign keys, CHECK constraints and unique indexes back every rule that application validation (Zod, `src/contracts`) also enforces.
 
 ### 6.2 Entity overview
 
 ```
-users ─┬─< accounts / sessions (Auth.js)
-       ├── user_preferences
-       ├─< trips ─┬── trip_briefs (1:1, current brief, JSONB validated by Zod)
-       │          ├─< trip_plans (versions) ─┬─< itinerary_days ─< itinerary_items
-       │          │                          │                  └─< itinerary_legs
-       │          │                          ├─< budget_lines
-       │          │                          └─< recommendation_results
-       │          └─< generation_jobs
-       ├─< saved_items ──> places | trips
-       └─< interaction_events
+users ─┬── user_preferences (1:1)
+       ├─< trips ─┬─< trip_interests >── activity_categories
+       │          └─< itineraries (versions) ─┬─< itinerary_days ─< itinerary_items
+       │                                      ├─< budget_lines
+       │                                      └─< recommendations
+       └─< saved_places ──> destination | hotel | activity (exactly one)
 
-destinations ─< places ─┬── hotel_details (1:1)
-                        ├── activity_details (1:1)
-                        ├── restaurant_details (1:1)
-                        ├─< opening_hours
-                        └─< place_tags >── tags
-
-provider_cache · fx_rates · scoring_configs · audit_log
+destinations ─┬─< hotels ─< hotel_amenities >── amenities
+              └─< activities ─< activity_opening_hours
+                     └──> activity_categories
 ```
 
-### 6.3 Core tables (key columns)
+### 6.3 Tables
 
-**Identity**
-- `users(id, email unique, name, image, created_at)`
-- `accounts`, `sessions`, `verification_tokens`: standard Auth.js Drizzle adapter schema
-- `user_preferences(user_id pk/fk, currency, locale, home_place_label, home_lat, home_lng, default_pace, diet_flags text[], local_modes text[])`
+| Table | Purpose and key decisions |
+|---|---|
+| `users` | Email unique. Columns match the Auth.js adapter. `accounts`, `sessions` and `verification_tokens` are added together with auth. |
+| `user_preferences` | 1:1 with a user (PK = `user_id`). Defaults that pre-fill a new brief. Trips copy them and never read them later. |
+| `destinations` | Unique `slug` and unique (`source`, `external_id`). Holds the timezone and local currency. |
+| `hotels` | Stars 1–5 (null for unclassified), rating 0–5 `numeric(2,1)`, review count, nightly price, `max_occupancy`, property type. No stored distance (derived). |
+| `amenities`, `hotel_amenities` | Normalised many-to-many so hotels can be filtered and scored by amenity. |
+| `activity_categories` | The single interest taxonomy, used by activities and by trip interests. |
+| `activities` | One category each. Duration, adult and child price (0 = free, null = unknown), minimum age, booking required. |
+| `activity_opening_hours` | ISO weekday rows. Split and overnight hours are several rows. |
+| `trips` | The brief: dates, departure, `adults` plus `child_ages smallint[]`, budget, style, pace, accommodation, transport, diet. |
+| `trip_interests` | Trip ↔ category. There is no priority column because the product has none. |
+| `itineraries` | Plan versions: unique (`trip_id`, `version`), and a partial unique index allows one `active` per trip. Snapshots the chosen hotel, the stay total, the currency, and the engine and scoring versions. |
+| `itinerary_days` | Unique (`itinerary_id`, `day_number`) and (`itinerary_id`, `date`). |
+| `itinerary_items` | Position within the day. A CHECK ties `type` to the reference: activity → `activity_id`, hotel → `hotel_id`, meal/free → own `title`. Start time plus duration. Cost snapshot. Travel leg from the previous item. |
+| `budget_lines` | One per category per itinerary, with `low ≤ planned ≤ high`. Total budget stays on the trip, and remaining is derived, so there is no separate `budgets` header. |
+| `recommendations` | Ranked results behind a plan: score 0–100, component breakdown, reason codes and the price used. These are stored because prices and ratings change and plans must stay explainable. Live browsing re-ranks without writing here. |
+| `saved_places` | Explicit nullable FKs with `num_nonnulls(...) = 1`, and a partial unique index per target type. |
 
-**Catalog**
-- `destinations(id, slug unique, name, country_code, tz, lat, lng, currency, cost_index numeric, is_active)`
-- `places(id, destination_id fk, kind enum('hotel','activity','restaurant'), name, area, address, lat, lng, rating numeric(2,1), rating_count int, price_level smallint, images jsonb, external_refs jsonb, source enum('curated','provider'), updated_at)`
-- `hotel_details(place_id pk, stars smallint, property_type, amenities text[], nightly_from_minor int, currency, max_occupancy smallint)`
-- `activity_details(place_id pk, category, duration_min int, price_adult_minor int, price_child_minor int, min_age smallint, indoor bool, booking_required bool, best_time enum('morning','afternoon','evening','any'))`
-- `restaurant_details(place_id pk, cuisines text[], diet_flags text[], meal_types text[], avg_price_pp_minor int)`
-- `opening_hours(place_id, weekday smallint, opens time, closes time)` (several rows per day allowed)
-- `tags(id, slug, group enum('interest','food','style','audience'))`, `place_tags(place_id, tag_id, weight numeric)`
-- Indexes: `places(destination_id, kind)`, `place_tags(tag_id)`, GIN on `restaurant_details.diet_flags`, `hotel_details(stars)`
+**Not created yet**
 
-**Trips and plans**
-- `trips(id, owner_id fk, destination_id fk, title, start_date, end_date, adults, children, status enum('draft','planned','archived'), current_plan_id fk null, created_at, updated_at, deleted_at)`
-- `trip_briefs(trip_id pk, schema_version int, data jsonb, updated_at)`: the full validated brief. The columns on `trips` are a denormalised projection for listing.
-- `trip_plans(id, trip_id fk, version int, engine_version text, scoring_config_id fk, catalog_snapshot_at timestamptz, status enum('ready','infeasible','superseded'), hotel_place_id fk, warnings jsonb, created_at)`, unique on (`trip_id, version`)
-- `itinerary_days(id, plan_id fk, day_index, date, kind enum('arrival','full','departure'), start_time, end_time, base_place_id fk)`
-- `itinerary_items(id, day_id fk, position int, kind enum('activity','meal','free','transfer'), place_id fk null, title, start_time, end_time, duration_min, cost_expected_minor, cost_low_minor, cost_high_minor, currency, locked bool, source enum('engine','user'), note)`, unique on (`day_id, position`), deferrable
-- `itinerary_legs(id, day_id fk, from_item_id, to_item_id, mode, duration_min, distance_m, geometry jsonb /* GeoJSON LineString, simplified */)`
-- `budget_lines(id, plan_id fk, category enum('accommodation','transport','food','activities','local_transport','reserve'), envelope_minor, planned_minor, low_minor, high_minor, currency, basis jsonb)`
-- `recommendation_results(id, plan_id fk, place_id fk, kind, rank int, score smallint, breakdown jsonb, reasons text[], selected bool)`
-- `generation_jobs(id, trip_id fk, idempotency_key unique, status enum('queued','running','succeeded','failed'), plan_id fk null, error jsonb, started_at, finished_at)`
+| Entity | Reason |
+|---|---|
+| `reviews` | The product has no user reviews. Provider ratings live on hotels and activities. |
+| `restaurants` | Meals are itinerary items with their own title until restaurant data exists. |
+| Auth tables | Added with Auth.js. |
+| `generation_jobs`, `provider_cache`, `fx_rates` | Added with the planning orchestrator and the provider integrations. |
+| `cost_index` on destinations | Added with the budget engine. |
 
-**Saved, behaviour, operations**
-- `saved_items(id, user_id, target_type enum('place','trip'), target_id, created_at)`, unique on (`user_id, target_type, target_id`)
-- `interaction_events(id, user_id, trip_id, place_id, type enum('view','save','remove','swap','lock','reorder'), created_at)` (append-only, future learning signal)
-- `scoring_configs(id, version, weights jsonb, created_at, is_active)`
-- `provider_cache(key pk, provider, payload jsonb, fetched_at, expires_at)`
-- `fx_rates(base, quote, rate numeric(18,8), as_of date)`, pk (`base, quote, as_of`)
-- `audit_log(id, actor_id, action, entity, entity_id, meta jsonb, created_at)`
+### 6.4 Delete behaviour
 
-### 6.4 Data integrity rules
+- **Cascade:** a user's preferences, trips and saved places. A trip's interests and itineraries, and through the itineraries their days, items, budget lines and recommendations. A hotel's amenity links. An activity's opening hours.
+- **Restrict:** shared catalog rows that something depends on, such as a destination with hotels, activities or trips, a category in use, or a hotel or activity referenced by a plan. Removing a catalog record that plans use is a deliberate data operation, not a side effect.
+- Saved places cascade from their target. A bookmark to a removed place has no meaning.
 
-- `CHECK (end_date >= start_date)`, `CHECK (end_date - start_date <= 20)` (21 days at most in the MVP)
-- `CHECK (adults >= 1 AND children >= 0 AND adults + children <= 10)`
-- Item times: `CHECK (end_time > start_time)`. Overlap within a day is validated in the service and by property tests. A DB exclusion constraint is not used, because times are local and days are scoped.
-- Writing a plan happens in one transaction. The previous `ready` plan becomes `superseded` atomically, and `trips.current_plan_id` is updated in the same transaction.
+### 6.5 Indexes beyond keys
 
----
+| Index | Query it serves |
+|---|---|
+| `trips (user_id, start_date)` | My trips, ordered by date |
+| `hotels (destination_id)` | Hotel candidates for a destination |
+| `activities (destination_id, category_id)` | Activity candidates, optionally by category |
+| `hotel_amenities (amenity_id)` | Filtering hotels by amenity |
+| `activity_opening_hours (activity_id)` | Loading hours with candidates |
+| `saved_places (user_id, created_at desc)` | The Saved page |
+| `itineraries (trip_id) WHERE status = 'active'` | The current plan, unique |
+
+Unique constraints cover the remaining lookups: days by itinerary, items by day, lines and recommendations by itinerary, and interests by trip. FK columns used only by restrict checks (for example `trips.destination_id`) are deliberately left unindexed.
+
+### 6.6 Seed data
+
+`pnpm db:seed --reference` loads the categories and amenities that every environment needs. `pnpm db:seed` also loads development fixtures, written with `source = 'fixture'`. It refuses to run with `NODE_ENV=production`, and `removeDevFixtures` removes the fixtures again.
 
 ## 7. API structure
 
@@ -357,6 +362,21 @@ provider_cache · fx_rates · scoring_configs · audit_log
 - Money in responses: `{ amountMinor: number, currency: "EUR" }`, plus a formatted string only if the client asks for it.
 
 ### 7.2 Endpoints
+
+**Implemented:**
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/destinations` | Filters: `q`, `country`, `city`, `interest`, `minStars`, `amenity`, `maxNightlyPriceMinor` + `currency`. Cursor pagination. |
+| GET | `/destinations/:destination` | By id or slug, with category counts |
+| GET | `/trips` | The signed-in user's trips |
+| POST | `/trips` | Submit a brief, with `endDate` or `days`. Creates a draft trip. |
+| GET | `/trips/:tripId` | |
+| DELETE | `/trips/:tripId` | |
+
+The code lives in `src/app/api/v1`, `src/server/modules/{trips,destinations}` and `src/server/platform/http.ts`. Until Auth.js is added, `DEV_AUTH_EMAIL` stands in for sign-in outside production (`src/server/platform/auth.ts`).
+
+Full planned surface:
 
 | Method | Path | Purpose |
 |---|---|---|
