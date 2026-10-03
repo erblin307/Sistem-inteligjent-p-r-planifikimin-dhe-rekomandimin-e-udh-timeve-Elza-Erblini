@@ -1,0 +1,326 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens
+ * -------------
+ * The Tailwind defaults for colour, type, radius, shadow, spacing and
+ * breakpoints are reset on purpose. Only the values below exist, so a class
+ * outside the system (text-blue-500, rounded-2xl, shadow-lg, p-3) generates
+ * nothing. See docs/DESIGN_SYSTEM.md for usage rules.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Neutrals – warm, very slightly yellow-biased greys */
+  --background: #f6f6f3; /* app canvas */
+  --surface: #ffffff; /* cards, panels, inputs */
+  --surface-subtle: #fafaf8; /* table headers, selected rows */
+  --muted: #efefeb; /* image placeholders, meter tracks */
+  --accent: #f2f2ef; /* hover fill for ghost items */
+  --foreground: #17191c; /* primary text */
+  --muted-foreground: #5c6066; /* secondary text, 6.3:1 on white */
+  --subtle-foreground: #7e838a; /* tertiary meta, 3.9:1 – never body copy */
+  --border: #e3e3de;
+  --border-strong: #cfcfc9; /* input borders, dividers that must read */
+
+  /* Brand – Harbour, a deep petrol blue. The only accent in the product. */
+  --primary: #1d5a72;
+  --primary-hover: #174a5e;
+  --primary-foreground: #ffffff;
+  --primary-subtle: #e8f0f3;
+  --primary-subtle-foreground: #164759;
+
+  /* Status – used for state only, never decoration */
+  --success: #2c6a3f;
+  --success-subtle: #e9f2eb;
+  --warning: #8a5a00;
+  --warning-subtle: #fbf2df;
+  --destructive: #b42318;
+  --destructive-subtle: #fcebea;
+
+  --ring: #1d5a72;
+
+  --shadow-color: 18 20 22;
+}
+
+.dark {
+  --background: #121314;
+  --surface: #1a1b1d;
+  --surface-subtle: #1f2022;
+  --muted: #26282a;
+  --accent: #232527;
+  --foreground: #ececea;
+  --muted-foreground: #a3a6aa;
+  --subtle-foreground: #7c8085;
+  --border: #2c2e31;
+  --border-strong: #3b3e42;
+
+  --primary: #7ab4cc;
+  --primary-hover: #94c4d8;
+  --primary-foreground: #0d1b21;
+  --primary-subtle: #172d36;
+  --primary-subtle-foreground: #a9d0e0;
+
+  --success: #7fc290;
+  --success-subtle: #17291d;
+  --warning: #e0b35a;
+  --warning-subtle: #2e2412;
+  --destructive: #f0857c;
+  --destructive-subtle: #331816;
+
+  --ring: #7ab4cc;
+
+  --shadow-color: 0 0 0;
+}
+
+@theme inline {
+  /* Colour ------------------------------------------------------------ */
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--border-strong);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+
+  --color-success: var(--success);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning: var(--warning);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-destructive: var(--destructive);
+  --color-destructive-subtle: var(--destructive-subtle);
+
+  /* Typography -------------------------------------------------------- */
+  --font-sans: var(--font-sans-face), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 28px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --tracking-*: initial;
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+
+  /* Spacing ----------------------------------------------------------- */
+  /* Padding, margin and gap use 1 2 4 6 8 12 16 only (4–64px).          */
+  /* 5, 10, 14 and the larger keys exist for sizing (icons, controls,    */
+  /* media, layout columns).                                             */
+  --spacing-*: initial;
+  --spacing-0: 0px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+  --spacing-32: 128px;
+  --spacing-40: 160px;
+  --spacing-48: 192px;
+  --spacing-60: 240px;
+  --spacing-64: 256px;
+  --spacing-80: 320px;
+  --spacing-96: 384px;
+
+  /* Layout widths ----------------------------------------------------- */
+  --container-*: initial;
+  --container-narrow: 480px; /* dialogs, auth */
+  --container-form: 640px; /* plan form */
+  --container-prose: 680px; /* long text */
+  --container-content: 1200px; /* app pages */
+  --container-wide: 1440px; /* workspace with map */
+
+  /* Breakpoints: three layouts, three decisions ------------------------ */
+  --breakpoint-*: initial;
+  --breakpoint-md: 768px; /* tablet */
+  --breakpoint-xl: 1280px; /* desktop */
+
+  /* Radius ------------------------------------------------------------ */
+  --radius-*: initial;
+  --radius-sm: 4px; /* badges, checkboxes, small media */
+  --radius-md: 8px; /* inputs, buttons, chips, menu items */
+  --radius-lg: 12px; /* cards, dialogs, image frames */
+  --radius-full: 9999px; /* avatars, map markers only */
+
+  /* Elevation: overlays only ------------------------------------------ */
+  --shadow-*: initial;
+  --shadow-overlay: 0 1px 2px rgb(var(--shadow-color) / 0.06),
+    0 12px 32px -8px rgb(var(--shadow-color) / 0.16);
+
+  /* Motion: state changes only ---------------------------------------- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-*: initial;
+  --animate-overlay-in: overlay-in 140ms var(--ease-standard);
+
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Type roles ----------------------------------------------------------- */
+/* Use these instead of combining size + weight ad hoc.                   */
+
+@utility type-title {
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+@utility type-heading {
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  font-weight: 600;
+  text-wrap: balance;
+}
+@utility type-subheading {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  font-weight: 600;
+}
+@utility type-body {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 400;
+}
+@utility type-reading {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  font-weight: 400;
+  text-wrap: pretty;
+}
+@utility type-label {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  font-weight: 500;
+}
+@utility type-caption {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 400;
+}
+@utility type-overline {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+@utility type-figure {
+  font-size: var(--text-xl);
+  line-height: var(--text-xl--line-height);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+/* Device safe areas for fixed bars on phones */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Base ----------------------------------------------------------------- */
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-primary-subtle);
+    color: var(--color-primary-subtle-foreground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::after,
+    ::before {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
