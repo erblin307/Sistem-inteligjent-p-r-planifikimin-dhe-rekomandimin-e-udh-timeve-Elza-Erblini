@@ -244,6 +244,12 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
+    // Enter in a step with a single text field submits the form implicitly.
+    // Treat that as Continue so no step, and never the Review step, is skipped.
+    if (currentStep < steps.length - 1) {
+      goNext();
+      return;
+    }
 
     const result = validateTripBrief(toPayload(state));
     if (!result.success) {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Components } from "./_components/components";
 import { Foundations } from "./_components/foundations";
 import { Patterns } from "./_components/patterns";
-import { ThemeToggle } from "./_components/theme-toggle";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export const metadata: Metadata = { title: "Design system" };
 
