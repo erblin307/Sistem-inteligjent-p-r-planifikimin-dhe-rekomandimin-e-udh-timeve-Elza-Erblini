@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { ItineraryTimeline } from "@/components/travel/itinerary-timeline";
 import { MapCanvas } from "@/components/travel/map-canvas";
 import { dayTwo } from "@/lib/fixtures/barcelona";
+import { loadWorkspace } from "../../data";
+import { NotPlannedYet } from "../not-planned";
 
-export const metadata: Metadata = { title: "Barcelona itinerary" };
+export const metadata: Metadata = { title: "Itinerary" };
 
 const days = ["Mon 12", "Tue 13", "Wed 14", "Thu 15", "Fri 16", "Sat 17"];
 
@@ -17,6 +19,16 @@ export default async function ItineraryPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
+  const workspace = await loadWorkspace(tripId);
+  if (workspace.kind === "trip") {
+    return (
+      <NotPlannedYet
+        tripId={tripId}
+        title="No itinerary yet"
+        description="Day-by-day itinerary generation is not built yet. The recommended activities for this trip are ready to review."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto grid w-full max-w-wide xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

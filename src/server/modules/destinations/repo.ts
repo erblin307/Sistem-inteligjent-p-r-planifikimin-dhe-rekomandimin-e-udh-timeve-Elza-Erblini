@@ -144,6 +144,13 @@ export async function categoryCounts(db: Database, destinationId: string) {
     .orderBy(asc(activityCategories.slug));
 }
 
+export async function activityCategoryList(db: Database) {
+  return db
+    .select({ slug: activityCategories.slug, name: activityCategories.name })
+    .from(activityCategories)
+    .orderBy(asc(activityCategories.name));
+}
+
 /** Slugs from `wanted` that do not exist in the vocabulary. */
 export async function unknownSlugs(
   db: Database,

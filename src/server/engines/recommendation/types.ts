@@ -1,6 +1,9 @@
-export type TravelStyle = "budget" | "balanced" | "comfort" | "premium";
-export type HotelType = "hotel" | "apartment" | "hostel" | "guesthouse";
-export type TransportationMode = "walk" | "public-transit" | "taxi" | "car";
+import type { accommodationTypes, localTransportModes, travelStyles } from "@/contracts/trip";
+
+/** Vocabularies come from the trip contract so profiles map 1:1 from a saved trip. */
+export type TravelStyle = (typeof travelStyles)[number];
+export type HotelType = (typeof accommodationTypes)[number];
+export type TransportationMode = (typeof localTransportModes)[number];
 
 export type Travelers = {
   adults: number;
@@ -8,7 +11,8 @@ export type Travelers = {
 };
 
 export type HotelPreference = {
-  stars?: 2 | 3 | 4 | 5;
+  /** Minimum official class; hotels at or above it fully match. */
+  minStars?: 1 | 2 | 3 | 4 | 5;
   type?: HotelType;
   maxNightlyPriceMinor?: number;
 };
@@ -44,7 +48,8 @@ export type HotelCandidate = {
   destination: string;
   currency: string;
   nightlyPriceMinor: number;
-  stars: 1 | 2 | 3 | 4 | 5;
+  /** Null for unclassified properties such as apartments. */
+  stars: 1 | 2 | 3 | 4 | 5 | null;
   type: HotelType;
   rating: number;
   reviewCount: number;

@@ -20,11 +20,14 @@ function HotelCard({
   selected = false,
   recommended = false,
   imageSrc,
+  selectable = true,
 }: {
   hotel: Hotel;
   selected?: boolean;
   recommended?: boolean;
-  imageSrc?: string;
+  imageSrc?: string | undefined;
+  /** False until choosing a hotel is saved to the trip. */
+  selectable?: boolean;
 }) {
   const total = {
     amountMinor: hotel.pricePerNight.amountMinor * hotel.nights * hotel.rooms,
@@ -54,13 +57,13 @@ function HotelCard({
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="type-subheading">{hotel.name}</h3>
-            <HotelStars stars={hotel.stars} />
+            {hotel.stars ? <HotelStars stars={hotel.stars} /> : null}
           </div>
           <MetaList
             items={[hotel.area, `${formatDistance(hotel.distanceToCentreM)} from centre`]}
           />
         </div>
-        <Rating value={hotel.rating} count={hotel.reviewCount} showWord />
+        {hotel.rating !== null ? <Rating value={hotel.rating} count={hotel.reviewCount} showWord /> : null}
         <ul className="flex flex-wrap gap-x-4 gap-y-1 type-body text-muted-foreground">
           {hotel.amenities.slice(0, 3).map((a) => (
             <li key={a}>{a}</li>
@@ -76,11 +79,11 @@ function HotelCard({
 
       <div className="flex items-end justify-between gap-4 border-t px-4 py-4 md:flex-col md:items-end md:justify-between md:border-l md:border-t-0">
         <div className="flex flex-col md:items-end">
-          {hotel.freeCancellation ? (
+          {hotel.freeCancellation === true ? (
             <span className="type-caption font-medium text-success">Free cancellation</span>
-          ) : (
+          ) : hotel.freeCancellation === false ? (
             <span className="type-caption text-muted-foreground">Non-refundable</span>
-          )}
+          ) : null}
         </div>
         <div className="flex flex-col items-end gap-2 md:w-full">
           <div className="text-right">
@@ -92,9 +95,11 @@ function HotelCard({
               {formatMoney(total)} total · {plural(hotel.nights, "night")}, {plural(hotel.rooms, "room")}
             </p>
           </div>
-          <Button variant={selected ? "secondary" : "primary"} className="md:w-full">
-            {selected ? "Selected" : "Select hotel"}
-          </Button>
+          {selectable ? (
+            <Button variant={selected ? "secondary" : "primary"} className="md:w-full">
+              {selected ? "Selected" : "Select hotel"}
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>

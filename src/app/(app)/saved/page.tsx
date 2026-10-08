@@ -15,7 +15,7 @@ export default function SavedPage() {
       <EmptyState
         title="No saved places yet"
         description="Save a hotel or activity while reviewing a trip and it will appear here."
-        action={<Button asChild variant="secondary"><Link href="/trips/barcelona/hotels">Browse places</Link></Button>}
+        action={<Button asChild variant="secondary"><Link href="/trips">Open my trips</Link></Button>}
       />
     </PageContainer>
   );

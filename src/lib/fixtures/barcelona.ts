@@ -31,16 +31,16 @@ export type ItineraryItem = {
 export type Hotel = {
   id: string;
   name: string;
-  stars: 1 | 2 | 3 | 4 | 5;
-  rating: number; // 0–5
+  stars: 1 | 2 | 3 | 4 | 5 | null; // null = unclassified (apartments, guesthouses)
+  rating: number | null; // 0–5; null = no rating yet
   reviewCount: number;
-  area: string;
+  area: string | null;
   distanceToCentreM: number;
   amenities: string[];
   pricePerNight: Money;
   nights: number;
   rooms: number;
-  freeCancellation: boolean;
+  freeCancellation: boolean | null; // null = policy not known
   score: number; // recommendation score 0–100
   reasons: string[];
 };
@@ -49,7 +49,7 @@ export type Activity = {
   id: string;
   title: string;
   category: string;
-  rating: number;
+  rating: number | null;
   reviewCount: number;
   durationMin: number;
   price: Money | null;

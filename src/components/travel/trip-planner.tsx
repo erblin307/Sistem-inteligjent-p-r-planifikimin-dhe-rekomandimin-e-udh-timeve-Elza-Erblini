@@ -4,26 +4,23 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 
 import {
-  ACTIVITY_INTERESTS,
-  FOOD_CUISINES,
-  FOOD_DIETS,
-  HOTEL_CATEGORIES,
+  ACCOMMODATION_TYPE_OPTIONS,
+  DIET_OPTIONS,
+  HOTEL_STAR_OPTIONS,
+  PACE_OPTIONS,
   SUPPORTED_CURRENCIES,
-  TRANSPORT_MODES,
-  TRAVEL_STYLES,
-  type ActivityInterest,
-  type FoodCuisine,
-  type FoodDiet,
-  type HotelCategory,
-  type SupportedCurrency,
-  type TransportMode,
-  type TravelStyle,
-  type TripBriefErrors,
-  type TripBriefField,
-  type TripBriefInput,
-  calculateTripDurationDays,
-  validateTripBrief,
-} from "@/contracts/trip-brief";
+  TRANSPORT_OPTIONS,
+  TRAVEL_STYLE_OPTIONS,
+  type TripFormErrors,
+  type TripFormField,
+  type TripFormState,
+  fieldForIssuePath,
+  initialTripFormState,
+  toCreateTripInput,
+  toMinorUnits,
+  validateTripForm,
+} from "@/lib/trip-form";
+import { dayCount } from "@/contracts/trip";
 import { formatMoney, plural } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/choice-chip";
@@ -43,67 +40,29 @@ const steps: Step[] = [
   { id: "destination", title: "Destination", description: "Route and dates" },
   { id: "travelers", title: "Travelers", description: "Who is going" },
   { id: "budget", title: "Budget", description: "Spend and style" },
-  { id: "accommodation", title: "Accommodation", description: "Hotel category" },
+  { id: "accommodation", title: "Accommodation", description: "Category and type" },
   { id: "interests", title: "Interests", description: "Things you enjoy" },
-  { id: "preferences", title: "Preferences", description: "Transport and food" },
-  { id: "review", title: "Review", description: "Check and generate" },
+  { id: "preferences", title: "Preferences", description: "Pace, transport, food" },
+  { id: "review", title: "Review", description: "Check and create" },
 ];
 
-const stepFields: TripBriefField[][] = [
-  ["departureLocation", "destination", "startDate", "endDate"],
-  ["adults", "children"],
+const stepFields: TripFormField[][] = [
+  ["departureCity", "destinationId", "startDate", "endDate"],
+  ["adults", "childAges"],
   ["budget", "currency", "travelStyle"],
-  ["hotelPreference"],
-  ["selectedActivities"],
-  ["transportationPreference", "foodPreference"],
+  ["minHotelStars", "accommodationType"],
+  ["interests"],
+  ["pace", "localTransportModes", "dietaryRequirements"],
   [],
 ];
 
-type PlannerState = {
-  departureLocation: string;
-  destination: string;
-  startDate: string;
-  endDate: string;
-  adults: number;
-  children: number;
-  budget: string;
-  currency: SupportedCurrency;
-  travelStyle: TravelStyle;
-  hotelCategory: HotelCategory;
-  activities: ActivityInterest[];
-  transportModes: TransportMode[];
-  foodDiets: FoodDiet[];
-  foodCuisines: FoodCuisine[];
-};
+export type DestinationOption = { id: string; name: string; countryCode: string };
+export type InterestOption = { slug: string; name: string };
 
 type ProblemResponse = {
   detail?: string;
   errors?: { path: string; message: string }[];
 };
-
-function toMinorUnits(value: string) {
-  const normalized = value.trim().replace(",", ".");
-  if (!/^\d+(?:\.\d{0,2})?$/.test(normalized)) return Number.NaN;
-  const [whole = "0", fraction = ""] = normalized.split(".");
-  const amount = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-  return Number.isSafeInteger(amount) ? amount : Number.NaN;
-}
-
-function toPayload(state: PlannerState): TripBriefInput {
-  return {
-    departureLocation: state.departureLocation,
-    destination: state.destination,
-    startDate: state.startDate,
-    endDate: state.endDate,
-    travelers: { adults: state.adults, children: state.children },
-    budget: { amountMinor: toMinorUnits(state.budget), currency: state.currency },
-    travelStyle: state.travelStyle,
-    hotelPreference: { category: state.hotelCategory },
-    selectedActivities: state.activities,
-    transportationPreference: { modes: state.transportModes },
-    foodPreference: { diets: state.foodDiets, cuisines: state.foodCuisines },
-  };
-}
 
 function toggleValue<T extends string>(values: T[], value: T, selected: boolean) {
   if (selected) return values.includes(value) ? values : [...values, value];
@@ -138,7 +97,7 @@ function formatReviewDate(value: string) {
       }).format(date);
 }
 
-function firstErrorStep(errors: TripBriefErrors) {
+function firstErrorStep(errors: TripFormErrors) {
   const index = stepFields.findIndex((fields) => fields.some((field) => errors[field]));
   return index >= 0 ? index : 0;
 }
@@ -167,59 +126,52 @@ function ReviewRow({
   );
 }
 
-export function TripPlanner({ initialDestination = "" }: { initialDestination?: string }) {
+export function TripPlanner({
+  destinations,
+  interests,
+  initialDestinationId = "",
+}: {
+  destinations: DestinationOption[];
+  interests: InterestOption[];
+  initialDestinationId?: string;
+}) {
   const router = useRouter();
   const headingRef = React.useRef<HTMLHeadingElement>(null);
   const [currentStep, setCurrentStep] = React.useState(0);
-  const [errors, setErrors] = React.useState<TripBriefErrors>({});
+  const [errors, setErrors] = React.useState<TripFormErrors>({});
   const [submitError, setSubmitError] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [state, setState] = React.useState<PlannerState>({
-    departureLocation: "",
-    destination: initialDestination,
-    startDate: "",
-    endDate: "",
-    adults: 1,
-    children: 0,
-    budget: "",
-    currency: "EUR",
-    travelStyle: "balanced",
-    hotelCategory: "any",
-    activities: [],
-    transportModes: ["walk", "public-transit"],
-    foodDiets: [],
-    foodCuisines: [],
-  });
+  const [state, setState] = React.useState<TripFormState>(() =>
+    initialTripFormState(initialDestinationId),
+  );
 
-  const durationDays = calculateTripDurationDays(state.startDate, state.endDate);
-  const totalTravelers = state.adults + state.children;
+  const hasDates = /^\d{4}-\d{2}-\d{2}$/.test(state.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(state.endDate);
+  const durationDays = hasDates && state.endDate >= state.startDate ? dayCount(state.startDate, state.endDate) : null;
+  const totalTravelers = state.adults + state.childAges.length;
+  const destinationName = destinations.find((d) => d.id === state.destinationId)?.name ?? "";
+  const interestOptions = interests.map((i) => ({ value: i.slug, label: i.name }));
 
   React.useEffect(() => {
     headingRef.current?.focus();
   }, [currentStep]);
 
-  function clearError(field: TripBriefField) {
+  function update(patch: Partial<TripFormState>, ...fields: TripFormField[]) {
+    setState((current) => ({ ...current, ...patch }));
     setErrors((current) => {
-      if (!current[field]) return current;
+      if (!fields.some((field) => current[field])) return current;
       const next = { ...current };
-      delete next[field];
+      for (const field of fields) delete next[field];
       return next;
     });
     setSubmitError("");
   }
 
   function validateCurrentStep() {
-    const result = validateTripBrief(toPayload(state));
-    if (result.success) {
-      setErrors({});
-      return true;
-    }
+    const allErrors = validateTripForm(state);
     const fields = stepFields[currentStep] ?? [];
     const currentErrors = Object.fromEntries(
-      Object.entries(result.errors).filter(([field]) =>
-        fields.includes(field as TripBriefField),
-      ),
-    ) as TripBriefErrors;
+      Object.entries(allErrors).filter(([field]) => fields.includes(field as TripFormField)),
+    ) as TripFormErrors;
     setErrors(currentErrors);
     return Object.keys(currentErrors).length === 0;
   }
@@ -251,46 +203,43 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
       return;
     }
 
-    const result = validateTripBrief(toPayload(state));
-    if (!result.success) {
-      setErrors(result.errors);
-      setCurrentStep(firstErrorStep(result.errors));
+    const allErrors = validateTripForm(state);
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
+      setCurrentStep(firstErrorStep(allErrors));
       return;
     }
 
     setIsSubmitting(true);
     setSubmitError("");
     try {
-      const response = await fetch("/api/v1/trips/generate", {
+      const response = await fetch("/api/v1/trips", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": crypto.randomUUID(),
-        },
-        body: JSON.stringify(toPayload(state)),
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(toCreateTripInput(state)),
       });
-      const body = (await response.json()) as
-        | { data: { redirectUrl: string } }
-        | ProblemResponse;
+      const body = (await response.json()) as { id: string } | ProblemResponse;
 
-      if (!response.ok || !("data" in body)) {
+      if (!response.ok || !("id" in body)) {
         const problem = body as ProblemResponse;
         if (problem.errors?.length) {
-          const serverErrors = Object.fromEntries(
-            problem.errors.map((error) => [error.path, error.message]),
-          ) as TripBriefErrors;
-          setErrors(serverErrors);
-          if (problem.errors.some((error) => error.path !== "destination")) {
+          const serverErrors: TripFormErrors = {};
+          for (const issue of problem.errors) {
+            const field = fieldForIssuePath(issue.path);
+            if (field && !serverErrors[field]) serverErrors[field] = issue.message;
+          }
+          if (Object.keys(serverErrors).length > 0) {
+            setErrors(serverErrors);
             setCurrentStep(firstErrorStep(serverErrors));
           }
         }
-        setSubmitError(problem.detail ?? "We couldn't generate your trip right now. Please try again.");
+        setSubmitError(problem.detail ?? "We couldn't create your trip right now. Please try again.");
         return;
       }
 
-      router.push(body.data.redirectUrl);
+      router.push(`/trips/${body.id}/overview`);
     } catch {
-      setSubmitError("We couldn't generate your trip right now. Check your connection and try again.");
+      setSubmitError("We couldn't create your trip right now. Check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -315,43 +264,41 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                   Where and when are you traveling?
                 </h2>
                 <p className="mt-2 type-body text-muted-foreground">
-                  Barcelona is the destination currently available in this catalog preview.
+                  Choose a destination from the catalog. More destinations appear here as they are added.
                 </p>
               </div>
               <div className="grid gap-6 md:grid-cols-2">
-                <Field label="Departure location" error={errors.departureLocation}>
+                <Field label="Departure city" error={errors.departureCity}>
                   <Input
-                    value={state.departureLocation}
-                    onChange={(event) => {
-                      setState((current) => ({
-                        ...current,
-                        departureLocation: event.target.value,
-                      }));
-                      clearError("departureLocation");
-                    }}
+                    value={state.departureCity}
+                    onChange={(event) => update({ departureCity: event.target.value }, "departureCity")}
                     autoComplete="off"
                     placeholder="e.g. Prishtina"
                   />
                 </Field>
-                <Field label="Destination" error={errors.destination}>
-                  <Input
-                    value={state.destination}
-                    onChange={(event) => {
-                      setState((current) => ({ ...current, destination: event.target.value }));
-                      clearError("destination");
-                    }}
-                    autoComplete="off"
-                    placeholder="Barcelona"
-                  />
+                <Field label="Destination" error={errors.destinationId}>
+                  <Select
+                    value={state.destinationId}
+                    onValueChange={(value) => update({ destinationId: value }, "destinationId")}
+                    disabled={destinations.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a destination" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {destinations.map((destination) => (
+                        <SelectItem key={destination.id} value={destination.id}>
+                          {destination.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <Field label="Start date" error={errors.startDate}>
                   <Input
                     type="date"
                     value={state.startDate}
-                    onChange={(event) => {
-                      setState((current) => ({ ...current, startDate: event.target.value }));
-                      clearError("startDate");
-                    }}
+                    onChange={(event) => update({ startDate: event.target.value }, "startDate")}
                   />
                 </Field>
                 <Field label="End date" error={errors.endDate}>
@@ -359,10 +306,7 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                     type="date"
                     min={state.startDate || undefined}
                     value={state.endDate}
-                    onChange={(event) => {
-                      setState((current) => ({ ...current, endDate: event.target.value }));
-                      clearError("endDate");
-                    }}
+                    onChange={(event) => update({ endDate: event.target.value }, "endDate")}
                   />
                 </Field>
               </div>
@@ -387,7 +331,8 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                   Who is traveling?
                 </h2>
                 <p className="mt-2 type-body text-muted-foreground">
-                  We use party size to keep hotel and activity recommendations realistic.
+                  We use party size and children&apos;s ages to keep hotel and activity
+                  recommendations realistic.
                 </p>
               </div>
               <div className="grid gap-6 md:grid-cols-2">
@@ -398,26 +343,51 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                     min={1}
                     max={10}
                     value={state.adults}
-                    onChange={(event) => {
-                      setState((current) => ({ ...current, adults: Number(event.target.value) }));
-                      clearError("adults");
-                    }}
+                    onChange={(event) => update({ adults: Number(event.target.value) }, "adults")}
                   />
                 </Field>
-                <Field label="Children" error={errors.children}>
+                <Field label="Children" hint="Under 18 on the start date.">
                   <Input
                     type="number"
                     inputMode="numeric"
                     min={0}
                     max={9}
-                    value={state.children}
+                    value={state.childAges.length}
                     onChange={(event) => {
-                      setState((current) => ({ ...current, children: Number(event.target.value) }));
-                      clearError("children");
+                      const count = Math.max(0, Math.min(9, Math.trunc(Number(event.target.value) || 0)));
+                      update(
+                        {
+                          childAges: Array.from({ length: count }, (_, i) => state.childAges[i] ?? Number.NaN),
+                        },
+                        "childAges",
+                        "adults",
+                      );
                     }}
                   />
                 </Field>
               </div>
+              {state.childAges.length > 0 ? (
+                <Fieldset legend="Children's ages" error={errors.childAges}>
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                    {state.childAges.map((age, index) => (
+                      <Field key={index} label={`Child ${index + 1}`}>
+                        <Input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          max={17}
+                          value={Number.isNaN(age) ? "" : age}
+                          onChange={(event) => {
+                            const next = [...state.childAges];
+                            next[index] = event.target.value === "" ? Number.NaN : Number(event.target.value);
+                            update({ childAges: next }, "childAges");
+                          }}
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                </Fieldset>
+              ) : null}
               <div className="border-y py-4">
                 <p className="type-caption text-muted-foreground">Total travelers</p>
                 <p className="mt-1 type-subheading tabular">{totalTravelers}</p>
@@ -447,20 +417,14 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                     leading="€"
                     inputMode="decimal"
                     value={state.budget}
-                    onChange={(event) => {
-                      setState((current) => ({ ...current, budget: event.target.value }));
-                      clearError("budget");
-                    }}
+                    onChange={(event) => update({ budget: event.target.value }, "budget")}
                     placeholder="1500"
                   />
                 </Field>
                 <Field label="Currency" error={errors.currency}>
                   <Select
                     value={state.currency}
-                    onValueChange={(value: SupportedCurrency) => {
-                      setState((current) => ({ ...current, currency: value }));
-                      clearError("currency");
-                    }}
+                    onValueChange={(value: TripFormState["currency"]) => update({ currency: value }, "currency")}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -478,13 +442,12 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
               <Fieldset legend="Travel style" error={errors.travelStyle}>
                 <RadioGroup
                   value={state.travelStyle}
-                  onValueChange={(value: TravelStyle) => {
-                    setState((current) => ({ ...current, travelStyle: value }));
-                    clearError("travelStyle");
-                  }}
+                  onValueChange={(value: TripFormState["travelStyle"]) =>
+                    update({ travelStyle: value }, "travelStyle")
+                  }
                   className="md:grid-cols-2"
                 >
-                  {TRAVEL_STYLES.map((style) => (
+                  {TRAVEL_STYLE_OPTIONS.map((style) => (
                     <RadioOption
                       key={style.value}
                       value={style.value}
@@ -507,37 +470,56 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                   tabIndex={-1}
                   className="mt-1 type-title outline-none"
                 >
-                  Choose your hotel preference
+                  Choose your accommodation preference
                 </h2>
                 <p className="mt-2 type-body text-muted-foreground">
-                  We only ask for a category because the current preference model does not store
-                  amenity requirements.
+                  Hotel recommendations are ranked against these preferences and your budget.
                 </p>
               </div>
-              <Field
-                label="Hotel category"
-                hint="Choose Any category if price and location matter more than star rating."
-                error={errors.hotelPreference}
-              >
-                <Select
-                  value={state.hotelCategory}
-                  onValueChange={(value: HotelCategory) => {
-                    setState((current) => ({ ...current, hotelCategory: value }));
-                    clearError("hotelPreference");
-                  }}
+              <div className="grid gap-6 md:grid-cols-2">
+                <Field
+                  label="Hotel category"
+                  hint="Choose Any category if price and location matter more."
+                  error={errors.minHotelStars}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOTEL_CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+                  <Select
+                    value={state.minHotelStars}
+                    onValueChange={(value: TripFormState["minHotelStars"]) =>
+                      update({ minHotelStars: value }, "minHotelStars")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {HOTEL_STAR_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Accommodation type" error={errors.accommodationType}>
+                  <Select
+                    value={state.accommodationType}
+                    onValueChange={(value: TripFormState["accommodationType"]) =>
+                      update({ accommodationType: value }, "accommodationType")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ACCOMMODATION_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
             </section>
           ) : null}
 
@@ -554,28 +536,23 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                   What are you interested in?
                 </h2>
                 <p className="mt-2 type-body text-muted-foreground">
-                  Select all that apply. You can change these before generating the trip.
+                  Select all that apply. Activities are matched to these interests.
                 </p>
               </div>
-              <Fieldset
-                legend="Activity interests"
-                hint="Choose at least one interest."
-                error={errors.selectedActivities}
-              >
+              <Fieldset legend="Activity interests" hint="Choose at least one interest." error={errors.interests}>
                 <div className="flex flex-wrap gap-2">
-                  {ACTIVITY_INTERESTS.map((interest) => (
+                  {interestOptions.map((interest) => (
                     <ChoiceChip
                       key={interest.value}
                       label={interest.label}
                       value={interest.value}
-                      checked={state.activities.includes(interest.value)}
-                      onCheckedChange={(checked) => {
-                        setState((current) => ({
-                          ...current,
-                          activities: toggleValue(current.activities, interest.value, checked),
-                        }));
-                        clearError("selectedActivities");
-                      }}
+                      checked={state.interests.includes(interest.value)}
+                      onCheckedChange={(checked) =>
+                        update(
+                          { interests: toggleValue(state.interests, interest.value, checked) },
+                          "interests",
+                        )
+                      }
                     />
                   ))}
                 </div>
@@ -593,73 +570,63 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                   tabIndex={-1}
                   className="mt-1 type-title outline-none"
                 >
-                  Add transport and food preferences
+                  Pace, transport and food
                 </h2>
                 <p className="mt-2 type-body text-muted-foreground">
                   These preferences help shape practical recommendations.
                 </p>
               </div>
+              <Fieldset legend="Travel pace" error={errors.pace}>
+                <RadioGroup
+                  value={state.pace}
+                  onValueChange={(value: TripFormState["pace"]) => update({ pace: value }, "pace")}
+                  className="md:grid-cols-3"
+                >
+                  {PACE_OPTIONS.map((pace) => (
+                    <RadioOption key={pace.value} value={pace.value} title={pace.label} description={pace.description} />
+                  ))}
+                </RadioGroup>
+              </Fieldset>
               <Fieldset
-                legend="Transportation"
+                legend="Getting around"
                 hint="Select every mode you are comfortable using."
-                error={errors.transportationPreference}
+                error={errors.localTransportModes}
               >
                 <div className="flex flex-wrap gap-2">
-                  {TRANSPORT_MODES.map((mode) => (
+                  {TRANSPORT_OPTIONS.map((mode) => (
                     <ChoiceChip
                       key={mode.value}
                       label={mode.label}
                       value={mode.value}
-                      checked={state.transportModes.includes(mode.value)}
-                      onCheckedChange={(checked) => {
-                        setState((current) => ({
-                          ...current,
-                          transportModes: toggleValue(current.transportModes, mode.value, checked),
-                        }));
-                        clearError("transportationPreference");
-                      }}
+                      checked={state.localTransportModes.includes(mode.value)}
+                      onCheckedChange={(checked) =>
+                        update(
+                          { localTransportModes: toggleValue(state.localTransportModes, mode.value, checked) },
+                          "localTransportModes",
+                        )
+                      }
                     />
                   ))}
                 </div>
               </Fieldset>
               <Fieldset
-                legend="Food"
-                hint="Leave all options unselected if you have no preference."
-                error={errors.foodPreference}
+                legend="Dietary requirements"
+                hint="Leave all options unselected if you have none."
+                error={errors.dietaryRequirements}
               >
                 <div className="flex flex-wrap gap-2">
-                  {FOOD_CUISINES.map((preference) => (
+                  {DIET_OPTIONS.map((diet) => (
                     <ChoiceChip
-                      key={preference.value}
-                      label={preference.label}
-                      value={preference.value}
-                      checked={state.foodCuisines.includes(preference.value)}
-                      onCheckedChange={(checked) => {
-                        setState((current) => ({
-                          ...current,
-                          foodCuisines: toggleValue(
-                            current.foodCuisines,
-                            preference.value,
-                            checked,
-                          ),
-                        }));
-                        clearError("foodPreference");
-                      }}
-                    />
-                  ))}
-                  {FOOD_DIETS.map((preference) => (
-                    <ChoiceChip
-                      key={preference.value}
-                      label={preference.label}
-                      value={preference.value}
-                      checked={state.foodDiets.includes(preference.value)}
-                      onCheckedChange={(checked) => {
-                        setState((current) => ({
-                          ...current,
-                          foodDiets: toggleValue(current.foodDiets, preference.value, checked),
-                        }));
-                        clearError("foodPreference");
-                      }}
+                      key={diet.value}
+                      label={diet.label}
+                      value={diet.value}
+                      checked={state.dietaryRequirements.includes(diet.value)}
+                      onCheckedChange={(checked) =>
+                        update(
+                          { dietaryRequirements: toggleValue(state.dietaryRequirements, diet.value, checked) },
+                          "dietaryRequirements",
+                        )
+                      }
                     />
                   ))}
                 </div>
@@ -680,16 +647,11 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                   Review your trip brief
                 </h2>
                 <p className="mt-2 type-body text-muted-foreground">
-                  Check each section before opening the Barcelona trip workspace.
+                  Check each section, then create the trip. It is saved and opens in its workspace.
                 </p>
               </div>
               <div className="border-y">
-                <ReviewRow
-                  label="Route"
-                  value={`${state.departureLocation} → ${state.destination}`}
-                  step={0}
-                  onEdit={editStep}
-                />
+                <ReviewRow label="Route" value={`${state.departureCity} → ${destinationName}`} step={0} onEdit={editStep} />
                 <ReviewRow
                   label="Travel dates"
                   value={`${formatReviewDate(state.startDate)} – ${formatReviewDate(state.endDate)} · ${plural(durationDays ?? 0, "day")}`}
@@ -698,49 +660,47 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
                 />
                 <ReviewRow
                   label="Travelers"
-                  value={`${plural(state.adults, "adult")} · ${plural(state.children, "child", "children")} · ${plural(totalTravelers, "traveler")}`}
+                  value={[
+                    plural(state.adults, "adult"),
+                    state.childAges.length > 0
+                      ? `${plural(state.childAges.length, "child", "children")} (aged ${state.childAges.join(", ")})`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                   step={1}
                   onEdit={editStep}
                 />
                 <ReviewRow
                   label="Budget and style"
-                  value={`${formatMoney({ amountMinor: toMinorUnits(state.budget), currency: state.currency })} · ${optionLabel(TRAVEL_STYLES, state.travelStyle)}`}
+                  value={`${formatMoney({ amountMinor: toMinorUnits(state.budget), currency: state.currency })} · ${optionLabel(TRAVEL_STYLE_OPTIONS, state.travelStyle)}`}
                   step={2}
                   onEdit={editStep}
                 />
                 <ReviewRow
-                  label="Hotel preference"
-                  value={optionLabel(HOTEL_CATEGORIES, state.hotelCategory)}
+                  label="Accommodation"
+                  value={`${optionLabel(HOTEL_STAR_OPTIONS, state.minHotelStars)} · ${optionLabel(ACCOMMODATION_TYPE_OPTIONS, state.accommodationType)}`}
                   step={3}
                   onEdit={editStep}
                 />
+                <ReviewRow label="Interests" value={listLabels(interestOptions, state.interests)} step={4} onEdit={editStep} />
+                <ReviewRow label="Pace" value={optionLabel(PACE_OPTIONS, state.pace)} step={5} onEdit={editStep} />
                 <ReviewRow
-                  label="Activity interests"
-                  value={listLabels(ACTIVITY_INTERESTS, state.activities)}
-                  step={4}
-                  onEdit={editStep}
-                />
-                <ReviewRow
-                  label="Transportation"
-                  value={listLabels(TRANSPORT_MODES, state.transportModes)}
+                  label="Getting around"
+                  value={listLabels(TRANSPORT_OPTIONS, state.localTransportModes)}
                   step={5}
                   onEdit={editStep}
                 />
                 <ReviewRow
-                  label="Food preferences"
-                  value={[
-                    listLabels(FOOD_CUISINES, state.foodCuisines),
-                    listLabels(FOOD_DIETS, state.foodDiets),
-                  ]
-                    .filter((value, index, values) => value !== "No preference" || values.length === 1)
-                    .join(", ") || "No preference"}
+                  label="Dietary requirements"
+                  value={listLabels(DIET_OPTIONS, state.dietaryRequirements)}
                   step={5}
                   onEdit={editStep}
                 />
               </div>
               {submitError ? (
                 <div role="alert" className="border-l-2 border-destructive pl-4">
-                  <p className="type-label text-destructive">We couldn&apos;t generate your trip.</p>
+                  <p className="type-label text-destructive">We couldn&apos;t create your trip.</p>
                   <p className="mt-1 type-body text-muted-foreground">{submitError}</p>
                 </div>
               ) : null}
@@ -762,7 +722,7 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
             </Button>
           ) : (
             <Button key="generate" type="submit" variant="primary" disabled={isSubmitting}>
-              {isSubmitting ? "Creating your personalized trip…" : "Generate My Trip"}
+              {isSubmitting ? "Creating your trip…" : "Create trip"}
             </Button>
           )}
         </div>
