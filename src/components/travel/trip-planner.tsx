@@ -751,11 +751,11 @@ export function TripPlanner({ initialDestination = "" }: { initialDestination?: 
             <span />
           )}
           {currentStep < steps.length - 1 ? (
-            <Button type="button" variant="primary" onClick={goNext}>
+            <Button key="continue" type="button" variant="primary" onClick={goNext}>
               Continue
             </Button>
           ) : (
-            <Button type="submit" variant="primary" disabled={isSubmitting}>
+            <Button key="generate" type="submit" variant="primary" disabled={isSubmitting}>
               {isSubmitting ? "Creating your personalized trip…" : "Generate My Trip"}
             </Button>
           )}
