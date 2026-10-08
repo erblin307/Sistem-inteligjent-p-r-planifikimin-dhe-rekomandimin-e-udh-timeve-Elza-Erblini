@@ -4,6 +4,8 @@ Next.js (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui on Rad
 
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Design system: [`docs/DESIGN_SYSTEM.md`](docs/DESIGN_SYSTEM.md). The live reference is at `/design-system`.
+- Recommendation engine: [`docs/RECOMMENDATION_ENGINE.md`](docs/RECOMMENDATION_ENGINE.md)
+- Presentation and defense: [`docs/PRESENTATION_PLAN.md`](docs/PRESENTATION_PLAN.md), [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md), [`docs/DEFENSE_QUESTIONS.md`](docs/DEFENSE_QUESTIONS.md)
 
 ```bash
 pnpm install
