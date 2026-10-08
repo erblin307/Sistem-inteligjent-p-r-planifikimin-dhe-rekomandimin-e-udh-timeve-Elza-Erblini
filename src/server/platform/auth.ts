@@ -20,6 +20,16 @@ export type RequestUser = { id: string; email: string };
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- sessions will read the cookie from it
 export async function requireUser(db: Database, request: Request): Promise<RequestUser> {
+  const user = await currentUser(db);
+  if (!user) throw new UnauthorizedError();
+  return user;
+}
+
+/**
+ * The signed-in user for Server Components, which have no Request object.
+ * Null when nobody is signed in.
+ */
+export async function currentUser(db: Database): Promise<RequestUser | null> {
   const env = serverEnv();
   if (env.NODE_ENV !== "production" && env.DEV_AUTH_EMAIL) {
     const email = env.DEV_AUTH_EMAIL.toLowerCase();
@@ -30,5 +40,5 @@ export async function requireUser(db: Database, request: Request): Promise<Reque
       .returning({ id: users.id, email: users.email });
     if (user) return user;
   }
-  throw new UnauthorizedError();
+  return null;
 }

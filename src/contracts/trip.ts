@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 /**
- * Trip brief contract, shared by the plan form and the API.
+ * Trip brief contract for POST /api/v1/trips. The plan form maps its state
+ * onto it in src/lib/trip-form.ts and validates with it before submitting.
  * Mirrors the database constraints in src/server/db/schema/trips.ts and adds
  * product rules the database does not own (trip length, dates in the future
  * are checked by the API against the destination's time zone).

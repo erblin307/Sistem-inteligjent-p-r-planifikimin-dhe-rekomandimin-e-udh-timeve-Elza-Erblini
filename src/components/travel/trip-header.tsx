@@ -10,7 +10,16 @@ import { MetaItem, MetaList } from "./meta";
  * Workspace header. Destination is the title; dates, party and budget are the
  * facts every tab depends on, so they stay visible above the tabs.
  */
-function TripHeader({ trip, actions }: { trip: TripSummary; actions?: React.ReactNode }) {
+function TripHeader({
+  trip,
+  actions,
+  sample = false,
+}: {
+  trip: TripSummary;
+  actions?: React.ReactNode;
+  /** Marks fixture data so it is never mistaken for the user's own trip. */
+  sample?: boolean;
+}) {
   const travelers = trip.adults + trip.children;
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -18,6 +27,7 @@ function TripHeader({ trip, actions }: { trip: TripSummary; actions?: React.Reac
         <div className="flex items-center gap-2">
           <h1 className="type-title">{trip.destination}</h1>
           {trip.status === "draft" ? <Badge variant="outline">Draft</Badge> : null}
+          {sample ? <Badge variant="outline">Sample data</Badge> : null}
         </div>
         <MetaList
           items={[

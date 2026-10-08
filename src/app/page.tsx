@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { Wordmark } from "@/components/shell/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { ItineraryTimeline } from "@/components/travel/itinerary-timeline";
 import { TripHeader } from "@/components/travel/trip-header";
 import { dayTwo, trip } from "@/lib/fixtures/barcelona";
@@ -61,9 +62,12 @@ export default function Home() {
               Example trip
             </Link>
           </nav>
-          <Button asChild size="sm" variant="secondary">
-            <Link href="/overview">Open app</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle compact />
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/overview">Open app</Link>
+            </Button>
+          </div>
         </div>
       </header>
 

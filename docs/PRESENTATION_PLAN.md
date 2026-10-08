@@ -8,7 +8,7 @@ This is the plan for the university presentation and defense. It has two compani
 - [`DEFENSE_QUESTIONS.md`](DEFENSE_QUESTIONS.md): likely jury questions, with answers taken from the code
 - [`PRESENTATION_REVIEW_FINDINGS.md`](PRESENTATION_REVIEW_FINDINGS.md): code issues found while preparing this material. Nothing was changed.
 
-Everything below was checked against the repository on 2026-10-08 (commit `66a00b8`). When the code changes, check §1 again before presenting.
+Everything below was checked against the repository on 2026-10-08 (commit `66a00b8`). §1.1 was updated afterwards for the change that joins the form, trips API, workspace and recommendation engine (PR #3); `DEMO_SCRIPT.md` and `DEFENSE_QUESTIONS.md` still describe the earlier state and need the same pass. When the code changes, check §1 again before presenting.
 
 ---
 
@@ -21,23 +21,25 @@ The presentation must describe the system that exists, not the one in the archit
 | Part | Status | Evidence |
 |---|---|---|
 | Trip brief form, 7 steps, "Plan a Trip" | **Working** | `src/components/travel/trip-planner.tsx`, `/plan` |
-| Brief validation (client and server, same rules) | **Working** | `src/contracts/trip-brief.ts` → `validateTripBrief`, used by the form and by `POST /api/v1/trips/generate` |
-| `POST /api/v1/trips/generate` | **Working, narrow.** Validates the brief, accepts only Barcelona, returns a redirect to the Barcelona workspace. It does not generate or store anything. | `src/app/api/v1/trips/generate/route.ts`, `src/server/modules/trips/create-trip.ts` |
-| Recommendation engine (hotels and activities) | **Implemented, not connected.** Pure, deterministic, explainable weighted scoring. No page or route calls it yet. | `src/server/engines/recommendation/engine.ts` |
-| Trip workspace: Overview, Itinerary, Map, Hotels, Activities, Budget | **UI built, data is a fixture.** Every tab reads the static Barcelona sample in `src/lib/fixtures/barcelona.ts`. Scores shown there (92, 86, 94…) are typed into the fixture, not computed. | `src/app/(app)/trips/[tripId]/*` |
+| Brief validation (client and server, same rules) | **Working.** One contract: the form maps its state onto it and the API validates with it. | `src/contracts/trip.ts` (`createTripInput`), `src/lib/trip-form.ts` |
+| Creating a trip | **Working.** The form posts to `POST /api/v1/trips`; the trip is saved in PostgreSQL and its workspace opens. Needs `DEV_AUTH_EMAIL` until sign-in exists. | `src/app/api/v1/trips/route.ts`, `src/server/modules/trips` |
+| Recommendation engine (hotels and activities) | **Working, connected.** Ranks the saved trip's destination catalog on the Hotels and Activities tabs and at `GET /api/v1/trips/:id/recommendations`. | `src/server/engines/recommendation`, `src/server/modules/recommendations` |
+| Trip workspace for a saved trip | **Overview, Hotels, Activities are real** (from the trip and the engine). **Itinerary, Map, Budget show an empty state**: no itinerary or budget engine yet. | `src/app/(app)/trips/[tripId]/*` |
+| Sample workspace (`/trips/barcelona`) | **Fixture, labelled "Sample data".** Shows what a finished plan looks like; scores there are typed into the fixture. | `src/lib/fixtures/barcelona.ts` |
 | Map | **Placeholder.** An SVG drawing with three numbered markers and a line. No map library, no tiles, no real coordinates. | `src/components/travel/map-canvas.tsx` ("stand-in until the MapLibre integration is connected") |
 | Budget page | **Calculation is real, inputs are fixture.** Planned spend, reserve and remaining are computed from the budget lines. | `src/components/travel/budget-breakdown.tsx` |
 | Database (PostgreSQL 16, Drizzle ORM) | **Working.** 17 tables, one migration, CHECK constraints, owner scoping. | `src/server/db/schema/*`, `drizzle/0000_initial_schema.sql` |
-| REST API for trips and destinations | **Working with a database.** `GET/POST /trips`, `GET/DELETE /trips/:id`, `GET /destinations`, `GET /destinations/:id`. Not used by the UI yet. | `src/app/api/v1/*`, `src/server/modules/*` |
+| REST API for trips and destinations | **Working with a database, used by the UI.** `GET/POST /trips`, `GET/DELETE /trips/:id`, `GET /trips/:id/recommendations`, `GET /destinations`, `GET /destinations/:id`. | `src/app/api/v1/*`, `src/server/modules/*` |
 | Sign-in | **Not built.** A development stand-in (`DEV_AUTH_EMAIL`) acts as one user outside production. | `src/server/platform/auth.ts` |
-| Design system | **Working.** Tokens, restyled shadcn/ui components, a lint script that blocks off-system styles, light and dark tokens (theme toggle only on `/design-system`). | `docs/DESIGN_SYSTEM.md`, `/design-system` |
-| Automated tests | **98 tests, all passing** with PostgreSQL 16 (33 contract, 27 database, 38 API). Without a database, 65 are skipped. | `tests/` |
+| Design system | **Working.** Tokens, restyled shadcn/ui components, a lint script that blocks off-system styles, light and dark themes with a toggle in the app shell. | `docs/DESIGN_SYSTEM.md`, `/design-system` |
+| Automated tests | **128 tests, all passing** with PostgreSQL 16 (contracts, plan form mapping, recommendation engine, database, API including form → trip → recommendations). Without a database, 69 are skipped. | `tests/` |
 | Itinerary engine, route optimisation, budget engine | **Designed only** | `docs/ARCHITECTURE.md` §9, §10 |
 | External providers (maps, routing, places, hotels, flights, weather, FX) | **None integrated.** No API keys are needed. | No `src/server/integrations/` folder exists |
 | AI Travel Assistant / chat | **Does not exist** | No code |
 | Flights | **Does not exist** | No code |
-| Saved trips and saved places | **Database tables only.** The Saved page is an empty state. | `src/server/db/schema/saved.ts`, `/saved` |
-| Multiple destinations | **Only Barcelona.** Any other destination returns "Barcelona is the only destination available in the current catalog preview." | `create-trip.ts` |
+| My Trips | **Working.** Lists the user's saved trips, plus the sample. | `/trips` |
+| Saved places | **Database tables only.** The Saved page is an empty state. | `src/server/db/schema/saved.ts`, `/saved` |
+| Multiple destinations | **Whatever the catalog holds.** The form lists active destinations from the database; the development seed has only Barcelona. | `pnpm db:seed`, `/api/v1/destinations` |
 
 ### 1.2 Consequences for the slides
 
@@ -54,7 +56,7 @@ Use the names the app uses. Do not invent new ones.
 |---|---|
 | Smart Travel Planner (on the title slide), **Itinera** (the app) | Travel Builder, Journey Generator, Smart Trip Maker |
 | Plan a Trip, trip brief | Trip creator, wizard |
-| Generate My Trip | Build plan |
+| Create trip | Generate My Trip, Build plan |
 | Trip workspace, with the tabs Overview, Itinerary, Map, Hotels, Activities, Budget | Dashboard, Accommodation module |
 | My Trips, Saved Places | Saved trips (it is not built) |
 | Recommendation engine | AI, model, neural network |
@@ -497,7 +499,7 @@ The same story, compressed. Each slide maps to slides of the full version.
 | 4 | Worked example | Casa Fuster 78 vs Praktik Bakery 88, with reasons (slide 9) | 35 s |
 | 5 | Architecture and data | Layer diagram and PostgreSQL bullets (slides 6, 12) | 30 s |
 | 6 | Demo or result | Short demo (DEMO_SCRIPT §4), or screenshots of the brief and the workspace | 60 s |
-| 7 | Testing, status, conclusion | 98 tests, top 4 limitations, 3 conclusion points (slides 14–16) | 35 s |
+| 7 | Testing, status, conclusion | 128 tests, top 4 limitations, 3 conclusion points (slides 14–16) | 35 s |
 
 **Speaker notes (short version)**
 

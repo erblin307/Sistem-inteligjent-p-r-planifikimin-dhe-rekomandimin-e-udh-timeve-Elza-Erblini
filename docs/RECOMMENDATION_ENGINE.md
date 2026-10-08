@@ -28,7 +28,7 @@ receiving a small penalty.
 | Component | Weight | Derived from |
 |---|---:|---|
 | Budget match | 30% | Nightly price, nights, required rooms and either the explicit nightly limit or the style-based accommodation envelope |
-| Preference match | 20% | Requested stars, hotel type and the star level associated with the travel style |
+| Preference match | 20% | Minimum stars (hotels at or above it fully match; unclassified properties score half), hotel type and the star level associated with the travel style |
 | Location match | 20% | Real travel time for preferred modes, maximum walking time, or distance to the center as a fallback |
 | Activity match | 15% | Overlap between selected activities and nearby activity tags |
 | Rating score | 10% | Rating from 0–5, moderated by the real review count |
@@ -56,9 +56,19 @@ reasons based on the strongest real matches, for example:
 
 > Within your accommodation budget at €125 per night.
 >
-> Matches your 4-star hotel preference.
+> Meets your 4-star minimum.
 >
 > Well located for your preferred transportation mode.
+
+## Where it runs
+
+`src/server/modules/recommendations` loads a saved trip's destination catalog
+(hotels with amenities, activities with their category) and maps it onto the
+engine's inputs. The trip workspace's Hotels and Activities tabs call it. The
+catalog has no travel times or dietary data yet, so location uses straight-line
+distance to the destination centre, a hotel's nearby activity tags are the
+categories within 1.5 km, and food experiences are ineligible when the trip has
+a dietary requirement. Hotels and activities without a known price are left out.
 
 Call `buildRecommendations(input)` to score and rank all hotel and activity
 candidates, or call `scoreHotel(profile, hotel)` / `scoreActivity(profile,

@@ -7,6 +7,7 @@ import type {
 import type { Database } from "@/server/db/client";
 import { NotFoundError, ValidationError, type FieldIssue } from "@/server/platform/errors";
 import {
+  activityCategoryList,
   categoryCounts,
   findDestination,
   listDestinations,
@@ -62,6 +63,11 @@ export async function getDestination(ctx: Ctx, idOrSlug: string): Promise<Destin
   if (!row) throw new NotFoundError("Destination");
   const categories = await categoryCounts(ctx.db, row.id);
   return { ...toSummary(row), activities: { count: row.activityCount, categories } };
+}
+
+/** The interest taxonomy, for pickers. Trips and activities share it. */
+export async function listInterests(ctx: Ctx): Promise<{ slug: string; name: string }[]> {
+  return activityCategoryList(ctx.db);
 }
 
 function toSummary(r: DestinationRow): DestinationSummaryResponse {

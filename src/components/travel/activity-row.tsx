@@ -9,7 +9,19 @@ import { Price } from "./price";
 import { Rating } from "./rating";
 
 /** Compact activity result. Rows share one hairline-separated list. */
-function ActivityRow({ activity, imageSrc }: { activity: Activity; imageSrc?: string }) {
+function ActivityRow({
+  activity,
+  imageSrc,
+  distanceFrom = "hotel",
+  addable = true,
+}: {
+  activity: Activity;
+  imageSrc?: string | undefined;
+  /** False until adding to a day is saved to the itinerary. */
+  addable?: boolean;
+  /** What the distance is measured from. */
+  distanceFrom?: "hotel" | "centre";
+}) {
   return (
     <article className="grid grid-cols-[80px_minmax(0,1fr)] gap-4 py-4 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
       <ImageFrame src={imageSrc} alt={activity.title} ratio="4/3" className="rounded-sm" />
@@ -18,14 +30,14 @@ function ActivityRow({ activity, imageSrc }: { activity: Activity; imageSrc?: st
         <p className="type-caption text-muted-foreground">{activity.category}</p>
         <h3 className="type-label">{activity.title}</h3>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 type-body text-muted-foreground">
-          <Rating value={activity.rating} count={activity.reviewCount} />
+          {activity.rating !== null ? <Rating value={activity.rating} count={activity.reviewCount} /> : null}
           <span className="inline-flex items-center gap-1 tabular">
             <Clock aria-hidden className="size-4 text-subtle-foreground" />
             {formatDuration(activity.durationMin)}
           </span>
           <span className="inline-flex items-center gap-1 tabular">
             <MapPin aria-hidden className="size-4 text-subtle-foreground" />
-            {formatDistance(activity.distanceM)} from hotel
+            {formatDistance(activity.distanceM)} from {distanceFrom}
           </span>
         </div>
         {activity.reason ? (
@@ -35,9 +47,11 @@ function ActivityRow({ activity, imageSrc }: { activity: Activity; imageSrc?: st
 
       <div className="col-span-2 flex items-center justify-between gap-4 md:col-span-1 md:flex-col md:items-end">
         <Price value={activity.price} unit="person" />
-        <Button size="sm" variant="secondary">
-          <Plus aria-hidden /> Add to day
-        </Button>
+        {addable ? (
+          <Button size="sm" variant="secondary">
+            <Plus aria-hidden /> Add to day
+          </Button>
+        ) : null}
       </div>
     </article>
   );

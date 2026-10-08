@@ -181,7 +181,7 @@ function validateHotel(hotel: HotelCandidate) {
   if (!Number.isInteger(hotel.nightlyPriceMinor) || hotel.nightlyPriceMinor < 0) {
     throw new RangeError(`Hotel ${hotel.id} has an invalid nightly price.`);
   }
-  if (!Number.isInteger(hotel.stars) || hotel.stars < 1 || hotel.stars > 5) {
+  if (hotel.stars !== null && (!Number.isInteger(hotel.stars) || hotel.stars < 1 || hotel.stars > 5)) {
     throw new RangeError(`Hotel ${hotel.id} has an invalid star rating.`);
   }
   if (
@@ -287,14 +287,19 @@ function budgetMatch(cost: number, allowance: number) {
 }
 
 function hotelPreferenceMatch(profile: RecommendationProfile, hotel: HotelCandidate) {
-  const requestedStars = profile.hotelPreference.stars;
-  const starScore = requestedStars === undefined
+  const minStars = profile.hotelPreference.minStars;
+  // An unclassified property neither meets nor misses a star minimum.
+  const starScore = minStars === undefined
     ? 100
-    : clamp(100 - Math.abs(hotel.stars - requestedStars) * 35);
+    : hotel.stars === null
+      ? 50
+      : clamp(100 - Math.max(0, minStars - hotel.stars) * 35);
   const typeScore = profile.hotelPreference.type === undefined
     ? 100
     : hotel.type === profile.hotelPreference.type ? 100 : 35;
-  const styleScore = clamp(100 - Math.abs(hotel.stars - STYLE_STAR_TARGET[profile.travelStyle]) * 20);
+  const styleScore = hotel.stars === null
+    ? 50
+    : clamp(100 - Math.abs(hotel.stars - STYLE_STAR_TARGET[profile.travelStyle]) * 20);
 
   return starScore * 0.5 + typeScore * 0.3 + styleScore * 0.2;
 }
@@ -430,8 +435,9 @@ function hotelReasons(
       `Within your accommodation budget at ${formatMoney(hotel.nightlyPriceMinor, hotel.currency)} per night.`,
     );
   }
-  if (profile.hotelPreference.stars === hotel.stars) {
-    reasons.push(`Matches your ${hotel.stars}-star hotel preference.`);
+  const minStars = profile.hotelPreference.minStars;
+  if (minStars !== undefined && hotel.stars !== null && hotel.stars >= minStars) {
+    reasons.push(`Meets your ${minStars}-star minimum.`);
   }
   if (scores.locationMatch >= 80) {
     reasons.push("Well located for your preferred transportation mode.");
@@ -441,7 +447,7 @@ function hotelReasons(
     reasons.push(`Near activities that match ${joinWords(matchedActivities)}.`);
   }
   if (scores.ratingScore >= 85) {
-    reasons.push(`Highly rated at ${hotel.rating.toFixed(1)}/5 from ${hotel.reviewCount} reviews.`);
+    reasons.push(`Highly rated at ${hotel.rating.toFixed(1)}/5 from ${formatCount(hotel.reviewCount)} reviews.`);
   }
   if (reasons.length === 0 && hotel.nightlyPriceMinor > nightlyAllowance) {
     reasons.push(
@@ -473,7 +479,7 @@ function activityReasons(
     reasons.push("Easy to reach using your preferred transportation mode.");
   }
   if (scores.ratingScore >= 85) {
-    reasons.push(`Highly rated at ${activity.rating.toFixed(1)}/5 from ${activity.reviewCount} reviews.`);
+    reasons.push(`Highly rated at ${activity.rating.toFixed(1)}/5 from ${formatCount(activity.reviewCount)} reviews.`);
   }
   if (activity.isFoodExperience && scores.foodMatch >= 80) {
     reasons.push("Matches your food preferences.");
@@ -549,3 +555,7 @@ export const recommendationWeights = Object.freeze({
   hotels: HOTEL_WEIGHTS,
   activities: ACTIVITY_WEIGHTS,
 });
+
+function formatCount(value: number) {
+  return new Intl.NumberFormat("en-GB").format(value);
+}

@@ -7,6 +7,7 @@ import { Bookmark, CircleUser, House, Luggage, Route } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 /**
  * Application frame. Three separate layouts:
@@ -87,11 +88,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
+          <div className="mt-auto flex justify-center p-4 xl:justify-start xl:px-6">
+            <ThemeToggle compact />
+          </div>
         </aside>
 
         {/* Mobile top bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center border-b bg-background px-4 md:hidden">
+        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
           <Wordmark />
+          <ThemeToggle compact />
         </header>
 
         <main className="pb-24 md:pb-0">{children}</main>
