@@ -140,7 +140,7 @@ decisions.
 - Rating + HotelStars
 - Price
 - MetaList
-- ImageFrame
+- ImageFrame + MediaCredit (takes a normalised `TravelImage`, never a bare URL; rules in `docs/MEDIA.md`)
 - PageHeader + SectionHeader
 - EmptyState
 

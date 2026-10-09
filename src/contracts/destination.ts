@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import type { TravelImage } from "./media";
 import type { Money } from "./trip";
 
 /** Query string → filters for GET /api/v1/destinations. */
@@ -66,7 +67,8 @@ export type DestinationSummaryResponse = {
   longitude: number;
   timezone: string;
   currency: string;
-  imageUrl: string | null;
+  /** Destination context photo (not of a specific place), or null. */
+  image: TravelImage | null;
   hotels: {
     count: number;
     /** Lowest and median typical nightly rate, in the destination currency. */

@@ -2,21 +2,24 @@ import * as React from "react";
 import { Clock, MapPin, Plus } from "lucide-react";
 
 import { formatDistance, formatDuration } from "@/lib/format";
+import type { TravelImage } from "@/contracts/media";
 import type { Activity } from "@/lib/fixtures/barcelona";
 import { Button } from "@/components/ui/button";
 import { ImageFrame } from "./image-frame";
+import { MediaCredit } from "./media-credit";
 import { Price } from "./price";
 import { Rating } from "./rating";
 
 /** Compact activity result. Rows share one hairline-separated list. */
 function ActivityRow({
   activity,
-  imageSrc,
+  image,
   distanceFrom = "hotel",
   addable = true,
 }: {
   activity: Activity;
-  imageSrc?: string | undefined;
+  /** The place's own photo. Never a stock image: no photo shows the fallback. */
+  image?: TravelImage | null | undefined;
   /** False until adding to a day is saved to the itinerary. */
   addable?: boolean;
   /** What the distance is measured from. */
@@ -24,7 +27,7 @@ function ActivityRow({
 }) {
   return (
     <article className="grid grid-cols-[80px_minmax(0,1fr)] gap-4 py-4 md:grid-cols-[120px_minmax(0,1fr)_auto] md:items-center">
-      <ImageFrame src={imageSrc} alt={activity.title} ratio="4/3" className="rounded-sm" />
+      <ImageFrame image={image} size="thumbnail" fallback="place" ratio="4/3" className="rounded-sm" />
 
       <div className="flex min-w-0 flex-col gap-1">
         <p className="type-caption text-muted-foreground">{activity.category}</p>
@@ -43,6 +46,8 @@ function ActivityRow({
         {activity.reason ? (
           <p className="type-caption text-muted-foreground">{activity.reason}</p>
         ) : null}
+        {/* The thumbnail is too small for a caption, so its credit sits here. */}
+        {image ? <MediaCredit image={image} /> : null}
       </div>
 
       <div className="col-span-2 flex items-center justify-between gap-4 md:col-span-1 md:flex-col md:items-end">

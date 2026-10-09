@@ -4,6 +4,7 @@ import type {
   TripRecommendationsResponse,
 } from "@/contracts/recommendation";
 import type { TripResponse } from "@/contracts/trip";
+import { catalogImage } from "@/lib/media";
 import type { Database } from "@/server/db/client";
 import {
   buildRecommendations,
@@ -101,7 +102,7 @@ export async function recommendForTrip(ctx: Ctx, trip: TripResponse): Promise<Tr
         nights,
         rooms: Math.max(1, Math.ceil(trip.travelers.total / row.maxOccupancy)),
         freeCancellation: row.freeCancellation,
-        imageUrl: row.imageUrl,
+        image: catalogImage(row.imageUrl, { alt: row.name, subject: "entity" }),
         source: row.source,
         eligible,
         score,
@@ -119,7 +120,7 @@ export async function recommendForTrip(ctx: Ctx, trip: TripResponse): Promise<Tr
         durationMinutes: row.durationMinutes,
         pricePerPerson: { amountMinor: candidate.pricePerPersonMinor, currency: row.currency },
         distanceToCentreM: Math.round(candidate.distanceToCenterMeters),
-        imageUrl: row.imageUrl,
+        image: catalogImage(row.imageUrl, { alt: row.name, subject: "entity" }),
         source: row.source,
         eligible,
         score,

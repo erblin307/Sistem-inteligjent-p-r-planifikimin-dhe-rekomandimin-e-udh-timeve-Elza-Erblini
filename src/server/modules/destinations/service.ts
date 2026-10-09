@@ -4,6 +4,7 @@ import type {
   ListDestinationsQuery,
   ListDestinationsResponse,
 } from "@/contracts/destination";
+import { catalogImage } from "@/lib/media";
 import type { Database } from "@/server/db/client";
 import { NotFoundError, ValidationError, type FieldIssue } from "@/server/platform/errors";
 import {
@@ -83,7 +84,7 @@ function toSummary(r: DestinationRow): DestinationSummaryResponse {
     longitude: r.longitude,
     timezone: r.timezone,
     currency: r.currency,
-    imageUrl: r.imageUrl,
+    image: catalogImage(r.imageUrl, { alt: r.name, subject: "context" }),
     hotels: {
       count: r.hotelCount,
       nightlyFrom: money(r.nightlyFrom),

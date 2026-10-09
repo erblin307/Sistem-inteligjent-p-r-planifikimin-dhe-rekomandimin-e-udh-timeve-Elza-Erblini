@@ -48,7 +48,7 @@ export default async function HotelsPage({ params }: { params: Promise<{ tripId:
               key={hotel.id}
               recommended={index === 0}
               selectable={false}
-              imageSrc={hotel.imageUrl ?? undefined}
+              image={hotel.image}
               hotel={{
                 id: hotel.id,
                 name: hotel.name,

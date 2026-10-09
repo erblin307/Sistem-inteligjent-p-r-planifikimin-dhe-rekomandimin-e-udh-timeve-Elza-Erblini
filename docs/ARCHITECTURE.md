@@ -557,8 +557,9 @@ All providers are reached through **ports** (TypeScript interfaces) with adapter
 | `HotelProvider` | Live prices/availability (post-MVP) | Partner API (e.g. Booking.com Demand, Expedia Rapid, Hotelbeds) | Curated nightly-from price |
 | `ActivityProvider` | Bookable experiences (post-MVP) | Viator / GetYourGuide partner APIs | Curated activities |
 | `TransportEstimator` | Inbound transport cost | Heuristic (MVP); flight API later | User override |
+| `ImageProvider` | Photos of hotels, places and destinations, normalised to `TravelImage` | Google Places Photos, Wikimedia Commons, Pexels, Booking.com Demand (see `docs/MEDIA.md`) | Neutral fallback, never stock imagery for a named entity |
 
-**Caching TTLs:** geocoding 30 days, places 7 days, routing matrix 7 days (keyed by rounded coordinates and mode), weather 3 h, FX 24 h.
+**Caching TTLs:** geocoding 30 days, places 7 days (not photos: see `docs/MEDIA.md` §4), routing matrix 7 days (keyed by rounded coordinates and mode), weather 3 h, FX 24 h.
 **Catalog ingestion:** a CLI script (`pnpm catalog:import <destination>`) loads curated YAML/CSV, validates it with Zod, upserts it and reports what changed. Provider refresh jobs only ever **enrich** curated records. They never delete them.
 **Compliance:** attribution and display requirements are handled per provider (map attribution, photo credits). Provider content is stored only where the terms allow it, and the cache TTLs follow those terms.
 
