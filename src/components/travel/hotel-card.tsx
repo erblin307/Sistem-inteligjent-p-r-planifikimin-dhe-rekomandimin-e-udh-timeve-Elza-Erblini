@@ -2,6 +2,7 @@ import * as React from "react";
 import { Check } from "lucide-react";
 
 import { formatDistance, formatMoney, plural } from "@/lib/format";
+import type { TravelImage } from "@/contracts/media";
 import type { Hotel } from "@/lib/fixtures/barcelona";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +20,14 @@ function HotelCard({
   hotel,
   selected = false,
   recommended = false,
-  imageSrc,
+  image,
   selectable = true,
 }: {
   hotel: Hotel;
   selected?: boolean;
   recommended?: boolean;
-  imageSrc?: string | undefined;
+  /** The property's own photo. Never a stock image: no photo shows the fallback. */
+  image?: TravelImage | null | undefined;
   /** False until choosing a hotel is saved to the trip. */
   selectable?: boolean;
 }) {
@@ -42,7 +44,7 @@ function HotelCard({
       )}
     >
       <div className="p-2 md:p-4 md:pr-0">
-        <ImageFrame src={imageSrc} alt={hotel.name} ratio="4/3" className="max-md:aspect-video" />
+        <ImageFrame image={image} fallback="accommodation" ratio="4/3" className="max-md:aspect-video" />
       </div>
 
       <div className="flex min-w-0 flex-col gap-2 px-4 pb-4 md:p-4">

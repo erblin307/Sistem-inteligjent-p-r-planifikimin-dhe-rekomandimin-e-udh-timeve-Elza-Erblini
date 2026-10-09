@@ -47,7 +47,7 @@ export default async function ActivitiesPage({ params }: { params: Promise<{ tri
               key={activity.id}
               distanceFrom="centre"
               addable={false}
-              imageSrc={activity.imageUrl ?? undefined}
+              image={activity.image}
               activity={{
                 id: activity.id,
                 title: activity.name,

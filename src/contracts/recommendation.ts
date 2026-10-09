@@ -1,3 +1,4 @@
+import type { TravelImage } from "./media";
 import type { Money } from "./trip";
 
 /**
@@ -20,7 +21,8 @@ export type HotelRecommendationResponse = {
   nights: number;
   rooms: number;
   freeCancellation: boolean | null;
-  imageUrl: string | null;
+  /** The property's own photo, or null (the UI shows a neutral fallback). */
+  image: TravelImage | null;
   source: string;
   eligible: boolean;
   score: number;
@@ -36,7 +38,8 @@ export type ActivityRecommendationResponse = {
   durationMinutes: number;
   pricePerPerson: Money;
   distanceToCentreM: number;
-  imageUrl: string | null;
+  /** The place's own photo, or null. */
+  image: TravelImage | null;
   source: string;
   eligible: boolean;
   score: number;

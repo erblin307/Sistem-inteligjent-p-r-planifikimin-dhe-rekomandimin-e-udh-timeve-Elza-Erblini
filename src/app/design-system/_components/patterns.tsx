@@ -10,8 +10,11 @@ import { BudgetSummary, BudgetTable } from "@/components/travel/budget-breakdown
 import { EmptyState } from "@/components/travel/empty-state";
 import { HotelCard } from "@/components/travel/hotel-card";
 import { ItineraryTimeline } from "@/components/travel/itinerary-timeline";
+import { ImageFrame } from "@/components/travel/image-frame";
 import { HotelMarker, MapMarker } from "@/components/travel/map-marker";
+import { MediaCredit } from "@/components/travel/media-credit";
 import { TripHeader } from "@/components/travel/trip-header";
+import type { TravelImage } from "@/contracts/media";
 import { DocSection, Rule, Stage } from "./specimen";
 
 const workspaceTabs = ["Overview", "Itinerary", "Map", "Hotels", "Activities", "Budget"];
@@ -138,6 +141,45 @@ export function Patterns() {
       </DocSection>
 
       <DocSection
+        id="media"
+        title="Images"
+        description="Every photo enters through one normalised TravelImage and renders in ImageFrame. A named hotel or place shows only its own photo; without one it shows a neutral fallback, never stock imagery. Rules and providers: docs/MEDIA.md."
+      >
+        <Stage className="grid grid-cols-2 gap-6 md:grid-cols-4">
+          {(
+            [
+              { kind: "accommodation", ratio: "4/3", use: "Hotel card · 4:3" },
+              { kind: "place", ratio: "4/3", use: "Place or activity · 4:3" },
+              { kind: "destination", ratio: "16/9", use: "Destination hero · 16:9" },
+              { kind: "generic", ratio: "3/2", use: "Saved-trip preview · 3:2" },
+            ] as const
+          ).map((f) => (
+            <div key={f.kind} className="flex min-w-0 flex-col gap-2">
+              <ImageFrame fallback={f.kind} ratio={f.ratio} />
+              <span className="type-caption text-muted-foreground">{f.use}</span>
+            </div>
+          ))}
+        </Stage>
+        <div className="flex flex-col gap-2">
+          <h3 className="type-subheading">Photo credit</h3>
+          <p className="max-w-prose type-body text-muted-foreground">
+            Caption text under the photo, in each source&apos;s wording. Licences are shown in full. Thumbnails move
+            the credit into the item&apos;s details. Sample credits:
+          </p>
+          <Stage className="flex flex-col gap-1">
+            {creditSamples.map((image) => (
+              <MediaCredit key={image.source} image={image} />
+            ))}
+          </Stage>
+        </div>
+        <ul className="flex max-w-prose flex-col gap-2">
+          <Rule kind="do">Use stock photography only for destination or travel context (“Explore Rome”).</Rule>
+          <Rule kind="dont">Put a stock hotel, plane or street photo next to a specific hotel, flight or landmark.</Rule>
+          <Rule kind="dont">Overlay text on photos, use full-page photo backgrounds or photo mosaics.</Rule>
+        </ul>
+      </DocSection>
+
+      <DocSection
         id="empty"
         title="Empty states"
         description="State what is missing and give the next step. No illustrations, no jokes."
@@ -155,6 +197,24 @@ export function Patterns() {
     </>
   );
 }
+
+/** Sample credit data for the reference page only. No image is loaded. */
+const creditSamples: TravelImage[] = [
+  {
+    url: "/sample",
+    alt: "",
+    source: "wikimedia",
+    subject: "entity",
+    attribution: { authorName: "Author name", sourceName: "Wikimedia Commons", license: "CC BY-SA 4.0" },
+  },
+  {
+    url: "/sample",
+    alt: "",
+    source: "pexels",
+    subject: "context",
+    attribution: { authorName: "Photographer name", sourceName: "Pexels" },
+  },
+];
 
 /**
  * Stand-in for the MapLibre basemap so markers can be judged against a

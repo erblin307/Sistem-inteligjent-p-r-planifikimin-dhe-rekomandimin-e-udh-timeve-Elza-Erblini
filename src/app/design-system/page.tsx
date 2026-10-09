@@ -37,6 +37,7 @@ const index = [
       ["activities", "Activity result"],
       ["budget", "Budget"],
       ["map", "Map markers"],
+      ["media", "Images"],
       ["empty", "Empty states"],
     ],
   },
